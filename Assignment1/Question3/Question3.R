@@ -22,7 +22,7 @@ bptest(model_ram) # test for Homoscedasticity
 print(shapiro.test(model_ram$residuals) )# Shapiro-Wilk Test, test for normality of residuALS
 hist(model_ram$residuals)
 # test for linearity of the relationship between the dependent and independent variables using a scatter plot
-plot(laptop_data$Ram, laptop_data$Price, main = "Price vs Log(Ram)", xlab = "Log(Ram)", ylab = "Price", pch = 19, col = "blue")
+plot(laptop_data$Ram, laptop_data$Price, main = "Price vs Ram", xlab = "Ram", ylab = "Price", pch = 19, col = "blue")
 # add regression line to the scatter plot
 abline(model_ram, col = "red")
 #scatter plot tells us that the relationship between price and ram is linear

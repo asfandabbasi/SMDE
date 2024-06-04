@@ -1,0 +1,159 @@
+; Define Arrays for Resource Stations and Usage Counters
+ARRAY WaterStations(8), QUEUE
+ARRAY SportsDrinkStations(4), QUEUE
+ARRAY EnergyGelStations(3), QUEUE
+ARRAY MedicalTents(2), QUEUE
+
+ARRAY WaterUsed(8), INTEGER
+ARRAY SportsDrinkUsed(4), INTEGER
+ARRAY EnergyGelUsed(3), INTEGER
+ARRAY MedicalTentUsed(2), INTEGER
+
+; Initialize Counters for Resource Usage
+INITIALIZE WaterUsed(*) = 0
+INITIALIZE SportsDrinkUsed(*) = 0
+INITIALIZE EnergyGelUsed(*) = 0
+INITIALIZE MedicalTentUsed(*) = 0
+
+; Define Positions of Resource Stations in Kilometers
+DEFINE WATER_POSITIONS = [5, 10, 15, 20, 25, 30, 35, 40]
+DEFINE DRINK_POSITIONS = [10, 20, 30, 40]
+DEFINE GEL_POSITIONS = [15, 25, 35]
+DEFINE MEDICAL_POSITIONS = [10, 30]
+
+; Macro to check if the current segment has a resource station
+MACRO CHECK_RESOURCE_POSITION(CURRENT_DIST, POSITIONS, COUNT)
+BEGIN
+  FOR I = 1 TO COUNT
+    IF (CURRENT_DIST = POSITIONS(I)) THEN
+      RETURN I
+    ENDIF
+  ENDFOR
+  RETURN 0
+ENDMACRO
+
+; Define Linear Regression Coefficients from Python Model
+LET INTERCEPT = 1  ; 
+LET SLOPE = 1  ;
+
+; Define Constants for Climate Conditions
+
+
+
+
+; Define Runner Attributes
+GENERATE 1,1  ; Generate one runner per unit time
+
+; Initial Hydration, Energy, and Health Levels
+ASSIGN 4,100  ; Initial Hydration Level
+ASSIGN 5,100  ; Initial Energy Level
+ASSIGN 6,100  ; Initial Health Status
+
+; Initialize Runner Start Time
+ASSIGN 7,0  ; Runner Start Time (seconds)
+
+; Start the Simulation of the Race
+START_RACE:
+ADVANCE 1  ; Small delay to start the race
+
+; Main Loop to Cover All 5K Segments of the Race
+SEGMENT_LOOP:
+IF (A$7 >= 42195) THEN GOTO END_RACE  ; Check if the total race distance (42.195 km) is completed
+
+; Update Predicted Time Using the Linear Regression Model
+LET DISTANCE = (A$7 / 1000) + 5  ; Convert distance to kilometers and add the segment length (5 km)
+LET PREDICTED_TIME = INTERCEPT + (SLOPE * DISTANCE)
+LET NORM_TIME = NORMAL(PREDICTED_TIME, PREDICTED_TIME * 0.1)  ; Apply normal distribution with mean as predicted time and 10% variance
+LET A$7 = A$7 + NORM_TIME  ; Update total time with normally distributed predicted time for this segment
+
+; Adjust Time for Weather Conditions
+LET WEATHER_ADJUSTMENT = (BETA_TEMP * TEMP) + (BETA_HUMIDITY * HUMIDITY)
+LET A$7 = A$7 + WEATHER_ADJUSTMENT  ; Adjust total time for weather conditions
+
+; Randomly Deplete Hydration and Energy Levels
+LET A$4 = A$4 - (5 + UNIFORM(0, 5))  ; Decrease Hydration Level with randomness
+LET A$5 = A$5 - (5 + UNIFORM(0, 5))  ; Decrease Energy Level with randomness
+
+; Check for Resource Interaction at Specific Segments
+LET CURRENT_DIST = (A$7 / 1000)  ; Current distance in kilometers
+
+; Check Water Station
+LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, WATER_POSITIONS, 8)
+IF (STATION_INDEX > 0) THEN
+  IF (A$4 < 50) THEN GOTO WATER_STATION(STATION_INDEX)
+ENDIF
+
+; Check Sports Drink Station
+LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, DRINK_POSITIONS, 4)
+IF (STATION_INDEX > 0) THEN
+  IF (A$5 < 50) THEN GOTO SPORTS_DRINK_STATION(STATION_INDEX)
+ENDIF
+
+; Check Energy Gel Station
+LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, GEL_POSITIONS, 3)
+IF (STATION_INDEX > 0) THEN
+  IF (A$6 < 50) THEN GOTO ENERGY_GEL_STATION(STATION_INDEX)
+ENDIF
+
+; Check Medical Tent
+LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, MEDICAL_POSITIONS, 2)
+IF (STATION_INDEX > 0) THEN
+  IF (A$7 < 70) THEN GOTO MEDICAL_TENT(STATION_INDEX)
+ENDIF
+
+; Proceed to the Next Segment
+ADVANCE 0  ; Immediate transition to the next segment
+GOTO SEGMENT_LOOP
+
+; Resource Interactions at Specific Stations
+
+; Interaction at Water Station
+WATER_STATION(STATION_INDEX):
+  ENTER WaterStations(STATION_INDEX), 1
+  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to hydrate with randomness
+  LET A$7 = A$7 + C1  ; Add hydration time to total time
+  LEAVE WaterStations(STATION_INDEX), 1
+  LET WaterUsed(STATION_INDEX) = WaterUsed(STATION_INDEX) + 1
+  LET A$4 = 100  ; Refill Hydration Level
+  GOTO SEGMENT_LOOP
+
+; Interaction at Sports Drink Station
+SPORTS_DRINK_STATION(STATION_INDEX):
+  ENTER SportsDrinkStations(STATION_INDEX), 1
+  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to take sports drink with randomness
+  LET A$7 = A$7 + C1  ; Add sports drink time to total time
+  LEAVE SportsDrinkStations(STATION_INDEX), 1
+  LET SportsDrinkUsed(STATION_INDEX) = SportsDrinkUsed(STATION_INDEX) + 1
+  LET A$4 = 100  ; Refill Hydration Level
+  LET A$5 = A$5 + 10  ; Boost Energy Level
+  GOTO SEGMENT_LOOP
+
+; Interaction at Energy Gel Station
+ENERGY_GEL_STATION(STATION_INDEX):
+  ENTER EnergyGelStations(STATION_INDEX), 1
+  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to take energy gel with randomness
+  LET A$7 = A$7 + C1  ; Add energy gel time to total time
+  LEAVE EnergyGelStations(STATION_INDEX), 1
+  LET EnergyGelUsed(STATION_INDEX) = EnergyGelUsed(STATION_INDEX) + 1
+  LET A$5 = A$5 + 20  ; Boost Energy Level
+  GOTO SEGMENT_LOOP
+
+; Interaction at Medical Tent
+MEDICAL_TENT(STATION_INDEX):
+  ENTER MedicalTents(STATION_INDEX), 1
+  ADVANCE 10 + UNIFORM(-2, 2)  ; Time for medical assistance with randomness
+  LET A$7 = A$7 + C1  ; Add medical time to total time
+  LEAVE MedicalTents(STATION_INDEX), 1
+  LET MedicalTentUsed(STATION_INDEX) = MedicalTentUsed(STATION_INDEX) + 1
+  LET A$6 = 100  ; Restore Health Status
+  GOTO SEGMENT_LOOP
+
+; End of Race
+END_RACE:
+  TERMINATE 1  ; Runner finishes race
+
+; End of Simulation
+END
+
+; Report Results
+START 1000  ; Simulate 1000 runners
