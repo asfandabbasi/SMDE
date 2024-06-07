@@ -1,159 +1,241 @@
-; Define Arrays for Resource Stations and Usage Counters
-ARRAY WaterStations(8), QUEUE
-ARRAY SportsDrinkStations(4), QUEUE
-ARRAY EnergyGelStations(3), QUEUE
-ARRAY MedicalTents(2), QUEUE
+*TEMP_EFFECT FUNCTION X$VALOR,E3
+*1,S$ALM1/5,S$ALM2/9,S$ALM3 
 
-ARRAY WaterUsed(8), INTEGER
-ARRAY SportsDrinkUsed(4), INTEGER
-ARRAY EnergyGelUsed(3), INTEGER
-ARRAY MedicalTentUsed(2), INTEGER
+IS_THIRSTY FUNCTION RN1,D2
+0.25,0/1.0,1
 
-; Initialize Counters for Resource Usage
-INITIALIZE WaterUsed(*) = 0
-INITIALIZE SportsDrinkUsed(*) = 0
-INITIALIZE EnergyGelUsed(*) = 0
-INITIALIZE MedicalTentUsed(*) = 0
+IS_LOW_ENERGY FUNCTION RN2,D2
+0.3,0/1.0,1
 
-; Define Positions of Resource Stations in Kilometers
-DEFINE WATER_POSITIONS = [5, 10, 15, 20, 25, 30, 35, 40]
-DEFINE DRINK_POSITIONS = [10, 20, 30, 40]
-DEFINE GEL_POSITIONS = [15, 25, 35]
-DEFINE MEDICAL_POSITIONS = [10, 30]
+NEEDS_BATHROOM FUNCTION RN3,D2
+0.2,0/1.0,1
 
-; Macro to check if the current segment has a resource station
-MACRO CHECK_RESOURCE_POSITION(CURRENT_DIST, POSITIONS, COUNT)
-BEGIN
-  FOR I = 1 TO COUNT
-    IF (CURRENT_DIST = POSITIONS(I)) THEN
-      RETURN I
-    ENDIF
-  ENDFOR
-  RETURN 0
-ENDMACRO
+NEEDS_MEDICAL FUNCTION RN4,D2
+0.03,0/1.0,1
 
-; Define Linear Regression Coefficients from Python Model
-LET INTERCEPT = 1  ; 
-LET SLOPE = 1  ;
+* Define storage for water stations, bathrooms, energy drink stands, and medical tents
+WATER_STORAGE STORAGE 10000
+BATHROOM_STORAGE STORAGE 10
+ENERGY_STORAGE STORAGE 1000
+MEDICAL_STORAGE STORAGE 5
 
-; Define Constants for Climate Conditions
+Initial_Time EQU 10
+CurrTime VARIABLE Initial_Time+0
+	
 
 
+GENERATE 10,3 ; Runners start at intervals of 10 with a spread of 3
+
+* Define values for means
+ASSIGN MEAN_1,17.87
+ASSIGN MEAN_2,17.97
+ASSIGN MEAN_3,18.25
+ASSIGN MEAN_4,18.46
+ASSIGN MEAN_5,18.36
+ASSIGN MEAN_6,18.90
+ASSIGN MEAN_7,19.74
+ASSIGN MEAN_8,19.67
+ASSIGN MEAN_9,8.77  ; Corrected value for 42K
+
+* Define values for standard deviations
+ASSIGN STD_1,1.09
+ASSIGN STD_2,0.91
+ASSIGN STD_3,1.10
+ASSIGN STD_4,1.01
+ASSIGN STD_5,1.07
+ASSIGN STD_6,1.24
+ASSIGN STD_7,1.97
+ASSIGN STD_8,2.39
+ASSIGN STD_9,0.99  ; Corrected value for 42K
+
+ASSIGN TEMP_VALUE,0
+ASSIGN HUMIDITY,0
+
+* Initial phase - first 5 km
+ADVANCE P$MEAN_1,P$STD_1 ; Time to run first 5 km
+
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_5KM,RUN_CONTINUE_5KM
+
+* Water station at 5 km
+TRY_DRINK_5KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,RUN_CONTINUE_5KM
+
+RUN_CONTINUE_5KM ADVANCE P$MEAN_2,P$STD_2 ; Time to run next 10 km
 
 
-; Define Runner Attributes
-GENERATE 1,1  ; Generate one runner per unit time
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_10KM,CHECK_ENERGY_10KM
 
-; Initial Hydration, Energy, and Health Levels
-ASSIGN 4,100  ; Initial Hydration Level
-ASSIGN 5,100  ; Initial Energy Level
-ASSIGN 6,100  ; Initial Health Status
+* Water station at 10 km
+TRY_DRINK_10KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,CHECK_ENERGY_10KM
 
-; Initialize Runner Start Time
-ASSIGN 7,0  ; Runner Start Time (seconds)
+* Check for energy drink after water
+CHECK_ENERGY_10KM TRANSFER FN$IS_LOW_ENERGY,TRY_ENERGY_DRINK_10KM,CHECK_BATHROOM_10KM
 
-; Start the Simulation of the Race
-START_RACE:
-ADVANCE 1  ; Small delay to start the race
+* Energy drink stand at 10 km
+TRY_ENERGY_DRINK_10KM SEIZE ENERGY_STORAGE
+                     ADVANCE 0.33,0.05 ; Time spent at energy drink stand (20 seconds)
+                     RELEASE ENERGY_STORAGE
+                     TRANSFER ,CHECK_BATHROOM_10KM
 
-; Main Loop to Cover All 5K Segments of the Race
-SEGMENT_LOOP:
-IF (A$7 >= 42195) THEN GOTO END_RACE  ; Check if the total race distance (42.195 km) is completed
+* Check for bathroom after energy drink
+CHECK_BATHROOM_10KM TRANSFER FN$NEEDS_BATHROOM,TRY_BATHROOM_10KM,RUN_CONTINUE_10KM
 
-; Update Predicted Time Using the Linear Regression Model
-LET DISTANCE = (A$7 / 1000) + 5  ; Convert distance to kilometers and add the segment length (5 km)
-LET PREDICTED_TIME = INTERCEPT + (SLOPE * DISTANCE)
-LET NORM_TIME = NORMAL(PREDICTED_TIME, PREDICTED_TIME * 0.1)  ; Apply normal distribution with mean as predicted time and 10% variance
-LET A$7 = A$7 + NORM_TIME  ; Update total time with normally distributed predicted time for this segment
+* Bathroom at 10 km
+TRY_BATHROOM_10KM SEIZE BATHROOM_STORAGE
+                 ADVANCE 2,0.3 ; Time spent at bathroom (2 minutes)
+                 RELEASE BATHROOM_STORAGE
+                 TRANSFER ,RUN_CONTINUE_10KM
 
-; Adjust Time for Weather Conditions
-LET WEATHER_ADJUSTMENT = (BETA_TEMP * TEMP) + (BETA_HUMIDITY * HUMIDITY)
-LET A$7 = A$7 + WEATHER_ADJUSTMENT  ; Adjust total time for weather conditions
 
-; Randomly Deplete Hydration and Energy Levels
-LET A$4 = A$4 - (5 + UNIFORM(0, 5))  ; Decrease Hydration Level with randomness
-LET A$5 = A$5 - (5 + UNIFORM(0, 5))  ; Decrease Energy Level with randomness
+RUN_CONTINUE_10KM ADVANCE P$MEAN_2,P$STD_2 ; Time to run next 15 km
 
-; Check for Resource Interaction at Specific Segments
-LET CURRENT_DIST = (A$7 / 1000)  ; Current distance in kilometers
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_15KM,CHECK_MEDICAL_15KM
 
-; Check Water Station
-LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, WATER_POSITIONS, 8)
-IF (STATION_INDEX > 0) THEN
-  IF (A$4 < 50) THEN GOTO WATER_STATION(STATION_INDEX)
-ENDIF
+* Water station at 15 km
+TRY_DRINK_15KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER,CHECK_MEDICAL_15KM
 
-; Check Sports Drink Station
-LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, DRINK_POSITIONS, 4)
-IF (STATION_INDEX > 0) THEN
-  IF (A$5 < 50) THEN GOTO SPORTS_DRINK_STATION(STATION_INDEX)
-ENDIF
+* Check for medical tent after bathroom
+CHECK_MEDICAL_15KM TRANSFER FN$NEEDS_MEDICAL,TRY_MEDICAL_15KM,RUN_CONTINUE_15KM
 
-; Check Energy Gel Station
-LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, GEL_POSITIONS, 3)
-IF (STATION_INDEX > 0) THEN
-  IF (A$6 < 50) THEN GOTO ENERGY_GEL_STATION(STATION_INDEX)
-ENDIF
+* Medical tent at 15 km
+TRY_MEDICAL_15KM SEIZE MEDICAL_STORAGE
+                ADVANCE 10,1 ; Time spent at medical tent (10 minutes)
+                RELEASE MEDICAL_STORAGE
+                TRANSFER ,RUN_CONTINUE_15KM
 
-; Check Medical Tent
-LET STATION_INDEX = CHECK_RESOURCE_POSITION(CURRENT_DIST, MEDICAL_POSITIONS, 2)
-IF (STATION_INDEX > 0) THEN
-  IF (A$7 < 70) THEN GOTO MEDICAL_TENT(STATION_INDEX)
-ENDIF
 
-; Proceed to the Next Segment
-ADVANCE 0  ; Immediate transition to the next segment
-GOTO SEGMENT_LOOP
+RUN_CONTINUE_15KM ADVANCE P$MEAN_3,P$STD_3 ; Time to run next 5 km
 
-; Resource Interactions at Specific Stations
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_20KM,CHECK_ENERGY_20KM
 
-; Interaction at Water Station
-WATER_STATION(STATION_INDEX):
-  ENTER WaterStations(STATION_INDEX), 1
-  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to hydrate with randomness
-  LET A$7 = A$7 + C1  ; Add hydration time to total time
-  LEAVE WaterStations(STATION_INDEX), 1
-  LET WaterUsed(STATION_INDEX) = WaterUsed(STATION_INDEX) + 1
-  LET A$4 = 100  ; Refill Hydration Level
-  GOTO SEGMENT_LOOP
+* Water station at 20 km
+TRY_DRINK_20KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,CHECK_ENERGY_20KM
 
-; Interaction at Sports Drink Station
-SPORTS_DRINK_STATION(STATION_INDEX):
-  ENTER SportsDrinkStations(STATION_INDEX), 1
-  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to take sports drink with randomness
-  LET A$7 = A$7 + C1  ; Add sports drink time to total time
-  LEAVE SportsDrinkStations(STATION_INDEX), 1
-  LET SportsDrinkUsed(STATION_INDEX) = SportsDrinkUsed(STATION_INDEX) + 1
-  LET A$4 = 100  ; Refill Hydration Level
-  LET A$5 = A$5 + 10  ; Boost Energy Level
-  GOTO SEGMENT_LOOP
+* Check for energy drink after water
+CHECK_ENERGY_20KM TRANSFER FN$IS_LOW_ENERGY,TRY_ENERGY_DRINK_20KM,CHECK_BATHROOM_20KM
 
-; Interaction at Energy Gel Station
-ENERGY_GEL_STATION(STATION_INDEX):
-  ENTER EnergyGelStations(STATION_INDEX), 1
-  ADVANCE 5 + UNIFORM(-1, 1)  ; Time to take energy gel with randomness
-  LET A$7 = A$7 + C1  ; Add energy gel time to total time
-  LEAVE EnergyGelStations(STATION_INDEX), 1
-  LET EnergyGelUsed(STATION_INDEX) = EnergyGelUsed(STATION_INDEX) + 1
-  LET A$5 = A$5 + 20  ; Boost Energy Level
-  GOTO SEGMENT_LOOP
+* Energy drink stand at 20 km
+TRY_ENERGY_DRINK_20KM SEIZE ENERGY_STORAGE
+                     ADVANCE 0.33,0.05 ; Time spent at energy drink stand (20 seconds)
+                     RELEASE ENERGY_STORAGE
+                     TRANSFER ,CHECK_BATHROOM_20KM
 
-; Interaction at Medical Tent
-MEDICAL_TENT(STATION_INDEX):
-  ENTER MedicalTents(STATION_INDEX), 1
-  ADVANCE 10 + UNIFORM(-2, 2)  ; Time for medical assistance with randomness
-  LET A$7 = A$7 + C1  ; Add medical time to total time
-  LEAVE MedicalTents(STATION_INDEX), 1
-  LET MedicalTentUsed(STATION_INDEX) = MedicalTentUsed(STATION_INDEX) + 1
-  LET A$6 = 100  ; Restore Health Status
-  GOTO SEGMENT_LOOP
+* Check for bathroom after energy drink
+CHECK_BATHROOM_20KM TRANSFER FN$NEEDS_BATHROOM,TRY_BATHROOM_20KM,RUN_CONTINUE_20KM
 
-; End of Race
-END_RACE:
-  TERMINATE 1  ; Runner finishes race
+* Bathroom at 20 km
+TRY_BATHROOM_20KM SEIZE BATHROOM_STORAGE
+                 ADVANCE 2,0.3 ; Time spent at bathroom (2 minutes)
+                 RELEASE BATHROOM_STORAGE
+                 TRANSFER ,RUN_CONTINUE_20KM
 
-; End of Simulation
-END
 
-; Report Results
-START 1000  ; Simulate 1000 runners
+
+RUN_CONTINUE_20KM ADVANCE P$MEAN_4,P$STD_4 ; Time to run next 5 km
+
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_25KM,RUN_CONTINUE_25KM
+
+* Water station at 25 km
+TRY_DRINK_25KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,RUN_CONTINUE_25KM
+
+
+RUN_CONTINUE_25KM ADVANCE P$MEAN_5,P$STD_5 ; Time to run next 5 km
+
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_30KM,CHECK_ENERGY_30KM
+
+* Water station at 30 km
+TRY_DRINK_30KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,CHECK_ENERGY_30KM
+
+* Check for energy drink after water
+CHECK_ENERGY_30KM TRANSFER FN$IS_LOW_ENERGY,TRY_ENERGY_DRINK_30KM,CHECK_BATHROOM_30KM
+
+* Energy drink stand at 30 km
+TRY_ENERGY_DRINK_30KM SEIZE ENERGY_STORAGE
+                     ADVANCE 0.33,0.05 ; Time spent at energy drink stand (20 seconds)
+                     RELEASE ENERGY_STORAGE
+                     TRANSFER ,CHECK_BATHROOM_30KM
+
+* Check for bathroom after energy drink
+CHECK_BATHROOM_30KM TRANSFER FN$NEEDS_BATHROOM,TRY_BATHROOM_30KM,CHECK_MEDICAL_30KM
+
+* Bathroom at 30 km
+TRY_BATHROOM_30KM SEIZE BATHROOM_STORAGE
+                 ADVANCE 2,0.3 ; Time spent at bathroom (2 minutes)
+                 RELEASE BATHROOM_STORAGE
+                 TRANSFER ,CHECK_MEDICAL_30KM
+
+* Check for medical tent after bathroom
+CHECK_MEDICAL_30KM TRANSFER FN$NEEDS_MEDICAL,TRY_MEDICAL_30KM,RUN_CONTINUE_30KM
+
+* Medical tent at 30 km
+TRY_MEDICAL_30KM SEIZE MEDICAL_STORAGE
+                ADVANCE 10,1 ; Time spent at medical tent (10 minutes)
+                RELEASE MEDICAL_STORAGE
+                TRANSFER ,RUN_CONTINUE_30KM
+
+
+RUN_CONTINUE_30KM ADVANCE P$MEAN_6,P$STD_6 ; Time to run next 5 km
+
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_35KM,RUN_CONTINUE_35KM
+
+* Water station at 35 km
+TRY_DRINK_35KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,RUN_CONTINUE_35KM
+
+
+RUN_CONTINUE_35KM ADVANCE P$MEAN_7,P$STD_7 ; Time to run next 5 km
+
+
+TRANSFER FN$IS_THIRSTY,TRY_DRINK_40KM,CHECK_ENERGY_40KM
+
+* Water station at 40 km
+TRY_DRINK_40KM SEIZE WATER_STORAGE
+              ADVANCE 0.33,0.05 ; Time spent at water station (20 seconds)
+              RELEASE WATER_STORAGE
+              TRANSFER ,CHECK_ENERGY_40KM
+
+* Check for energy drink after water
+CHECK_ENERGY_40KM TRANSFER FN$IS_LOW_ENERGY,TRY_ENERGY_DRINK_40KM,CHECK_BATHROOM_40KM
+
+* Energy drink stand at 40 km
+TRY_ENERGY_DRINK_40KM SEIZE ENERGY_STORAGE
+                     ADVANCE 0.33,0.05 ; Time spent at energy drink stand (20 seconds)
+                     RELEASE ENERGY_STORAGE
+                     TRANSFER ,CHECK_BATHROOM_40KM
+
+* Check for bathroom after energy drink
+CHECK_BATHROOM_40KM TRANSFER FN$NEEDS_BATHROOM,TRY_BATHROOM_40KM,RUN_CONTINUE_FINAL_SPRINT
+
+* Bathroom at 40 km
+TRY_BATHROOM_40KM SEIZE BATHROOM_STORAGE
+                 ADVANCE 2,0.3 ; Time spent at bathroom (2 minutes)
+                 RELEASE BATHROOM_STORAGE
+                 TRANSFER ,RUN_CONTINUE_FINAL_SPRINT
+
+
+RUN_CONTINUE_FINAL_SPRINT ADVANCE P$MEAN_9,P$STD_9 ; Time to run the final 2.195 km
+
+
+
+TERMINATE 1
+
+START 3 ;
