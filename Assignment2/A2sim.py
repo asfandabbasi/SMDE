@@ -29,12 +29,12 @@ def calculate_weather_adjustment(temp, hum):
     return adjustment
 
 # Initialize environment and resources
-def init_environment():
+def init_environment(water_capacity, toilet_capacity, energy_capacity, medical_capacity):
     env = simpy.Environment()
-    water_storage = simpy.Resource(env, capacity=20)  # Realistic capacity for storage
-    bathroom_storage = simpy.Resource(env, capacity=10)  # Realistic capacity for storage
-    energy_storage = simpy.Resource(env, capacity=20)  # Hardcoded capacity
-    medical_storage = simpy.Resource(env, capacity=10)  # Hardcoded capacity
+    water_storage = simpy.Resource(env, capacity=water_capacity)  # Adjustable capacity for storage
+    bathroom_storage = simpy.Resource(env, capacity=toilet_capacity)  # Adjustable capacity for storage
+    energy_storage = simpy.Resource(env, capacity=energy_capacity)  
+    medical_storage = simpy.Resource(env, capacity=medical_capacity)  
     return env, water_storage, bathroom_storage, energy_storage, medical_storage
 
 # Runner attributes
@@ -54,7 +54,7 @@ def reset_counters():
         "medical_station_counter": 0,
     }
 
-def runner(env, name, weather_adjustment, water_stations, toilet_stations, counters, water_storage, bathroom_storage, energy_storage, medical_storage):
+def runner(env, name, weather_adjustment, counters, water_storage, bathroom_storage, energy_storage, medical_storage):
     energy = FULL_ENERGY
     thirst = FULL_THRIST
     health = FULL_HEALTH
@@ -80,9 +80,12 @@ def runner(env, name, weather_adjustment, water_stations, toilet_stations, count
         yield env.timeout(adjusted_time)
 
     def try_drink():
-        nonlocal thirst, distance_since_last_water
+        nonlocal thirst, distance_since_last_water, total_time
         with water_storage.request() as req:
+            start_wait = env.now
             yield req
+            wait_time = env.now - start_wait
+            total_time += wait_time
             counters["water_station_counter"] += 1
             drink_time = random.uniform(1, 2)
             thirst = min(FULL_THRIST, thirst + 40)
@@ -90,18 +93,24 @@ def runner(env, name, weather_adjustment, water_stations, toilet_stations, count
             yield env.timeout(drink_time)
 
     def try_energy_drink():
-        nonlocal energy
+        nonlocal energy, total_time
         with energy_storage.request() as req:
+            start_wait = env.now
             yield req
+            wait_time = env.now - start_wait
+            total_time += wait_time
             counters["energy_station_counter"] += 1
             energy_time = random.uniform(1, 2)
             energy = min(FULL_ENERGY, energy + 40)
             yield env.timeout(energy_time)
 
     def try_bathroom():
-        nonlocal distance_since_last_toilet, toilet
+        nonlocal distance_since_last_toilet, toilet, total_time
         with bathroom_storage.request() as req:
+            start_wait = env.now
             yield req
+            wait_time = env.now - start_wait
+            total_time += wait_time
             counters["bathroom_station_counter"] += 1
             bathroom_time = random.uniform(5, 10)
             toilet = min(FULL_TOILET, toilet + 40)
@@ -109,19 +118,17 @@ def runner(env, name, weather_adjustment, water_stations, toilet_stations, count
             yield env.timeout(bathroom_time)
 
     def try_medical():
-        nonlocal health
+        nonlocal health, total_time
         with medical_storage.request() as req:
+            start_wait = env.now
             yield req
+            wait_time = env.now - start_wait
+            total_time += wait_time
             counters["medical_station_counter"] += 1
             medical_time = random.uniform(15, 20)
             health = min(FULL_HEALTH, health + 50)
             yield env.timeout(medical_time)
 
-    def water_station_probability(distance_since_last):
-        return min(1.0, 0.1 * distance_since_last)
-
-    def toilet_station_probability(distance_since_last):
-        return min(1.0, 0.05 * distance_since_last)
 
     phases = [
         {"distance": 5, "mean": MEAN_TIMES[0], "std": STD_TIMES[0]},
@@ -143,11 +150,11 @@ def runner(env, name, weather_adjustment, water_stations, toilet_stations, count
         health_modifier = (FULL_HEALTH - health) / FULL_HEALTH
         toilet_modifier = (FULL_TOILET - toilet) / FULL_TOILET
 
-        if phase["distance"] % water_stations == 0 and check_prob(water_station_probability(distance_since_last_water), thirst_modifier):
+        if phase["distance"] % 5 == 0 and check_prob(0.4, thirst_modifier):
             yield from try_drink()
-        if check_prob(0.6, energy_modifier):
+        if phase["distance"] % 20 == 0 and check_prob(0.2, energy_modifier):
             yield from try_energy_drink()
-        if phase["distance"] % toilet_stations == 0 and check_prob(toilet_station_probability(distance_since_last_toilet), toilet_modifier):
+        if phase["distance"] % 10 == 0 and check_prob(0.2, toilet_modifier):
             yield from try_bathroom()
         if phase["distance"] % 15 == 0 and check_prob(0.3, health_modifier):
             yield from try_medical()
@@ -163,15 +170,21 @@ def check_prob(base_prob, modifier):
     return random.random() < base_prob * modifier
 
 # Design of Experiments (DOE) setup
+num_runners = 100
+water_capacity_per_runner = 0.05  # Example: 5 liters per 1000 runners
+toilet_capacity_per_runner = 0.025  # Example: 2.5 units per 1000 runners
+energy_capacity = num_runners * 0.1  # Example: 100 units per 1000 runners
+medical_capacity = num_runners * 0.05  # Example: 50 units per 1000 runners
+
 experiments = [
-    {'temp': 'L', 'hum': 'L', 'water': 10, 'toilet': 20},
-    {'temp': 'L', 'hum': 'L', 'water': 5, 'toilet': 10},
-    {'temp': 'L', 'hum': 'H', 'water': 10, 'toilet': 10},
-    {'temp': 'L', 'hum': 'H', 'water': 5, 'toilet': 20},
-    {'temp': 'H', 'hum': 'L', 'water': 10, 'toilet': 10},
-    {'temp': 'H', 'hum': 'L', 'water': 5, 'toilet': 20},
-    {'temp': 'H', 'hum': 'H', 'water': 10, 'toilet': 20},
-    {'temp': 'H', 'hum': 'H', 'water': 5, 'toilet': 10}
+    {'temp': 'L', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'L', 'hum': 'L', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
+    {'temp': 'L', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
+    {'temp': 'L', 'hum': 'H', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'L', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'H', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)}
 ]
 
 # To track the total times of all runners across experiments
@@ -179,14 +192,14 @@ all_total_times = []
 
 # Run the experiments
 for exp_index, exp in enumerate(experiments):
-    print(f"Running experiment with temp={exp['temp']}, hum={exp['hum']}, water stations every {exp['water']}km, toilet stations every {exp['toilet']}km")
+    print(f"Running experiment with temp={exp['temp']}, hum={exp['hum']}, water capacity {exp['water_capacity']} units, toilet capacity {exp['toilet_capacity']} units")
     total_times = []
     counters = reset_counters()
-    env, water_storage, bathroom_storage, energy_storage, medical_storage = init_environment()
+    env, water_storage, bathroom_storage, energy_storage, medical_storage = init_environment(exp['water_capacity'], exp['toilet_capacity'], energy_capacity, medical_capacity)
     weather_adjustment = calculate_weather_adjustment(exp['temp'], exp['hum'])
     
-    for i in range(3000):  # Number of runners
-        env.process(runner(env, f'Runner_{i+1}', weather_adjustment, exp['water'], exp['toilet'], counters, water_storage, bathroom_storage, energy_storage, medical_storage))
+    for i in range(num_runners):  # Number of runners
+        env.process(runner(env, f'Runner_{i+1}', weather_adjustment, counters, water_storage, bathroom_storage, energy_storage, medical_storage))
     env.run()
     
     experiment_counters[exp_index] = counters
@@ -195,7 +208,7 @@ for exp_index, exp in enumerate(experiments):
 # Calculate and print average times and station usage
 for i, (exp, times) in enumerate(all_total_times):
     average_time = sum(times) / len(times)
-    print(f'Experiment {i+1} with temp={exp["temp"]}, hum={exp["hum"]}, water stations every {exp["water"]}km, toilet stations every {exp["toilet"]}km average time: {average_time:.2f} minutes')
+    print(f'Experiment {i+1} with temp={exp["temp"]}, hum={exp["hum"]}, water capacity {exp["water_capacity"]} units, toilet capacity {exp["toilet_capacity"]} units average time: {average_time:.2f} minutes')
     counters = experiment_counters[i]
     print(f'Water station usage: {counters["water_station_counter"]}')
     print(f'Energy drink station usage: {counters["energy_station_counter"]}')
