@@ -67,7 +67,8 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
         nonlocal energy, thirst, health, total_time, distance_since_last_water, distance_since_last_toilet, toilet
         base_time = random.normalvariate(mean, std)
         adjusted_time = base_time + (weather_adjustment / len(MEAN_TIMES))
-        energy -= 5
+        energy -= random.normalvariate( 5, 2)
+        health -= random.normalvariate(0.5, 1)
         # Thirst reduction based on distance since last water station
         thirst_reduction = min(distance_since_last_water * 2, 20)  # Thirst reduction function
         thirst -= thirst_reduction
@@ -87,7 +88,7 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
             wait_time = env.now - start_wait
             total_time += wait_time
             counters["water_station_counter"] += 1
-            drink_time = random.uniform(1, 2)
+            drink_time = abs(random.normalvariate(1, 2))
             thirst = min(FULL_THRIST, thirst + 40)
             distance_since_last_water = 0
             yield env.timeout(drink_time)
@@ -100,7 +101,7 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
             wait_time = env.now - start_wait
             total_time += wait_time
             counters["energy_station_counter"] += 1
-            energy_time = random.uniform(1, 2)
+            energy_time = abs(random.normalvariate(1, 2))
             energy = min(FULL_ENERGY, energy + 40)
             yield env.timeout(energy_time)
 
@@ -112,7 +113,7 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
             wait_time = env.now - start_wait
             total_time += wait_time
             counters["bathroom_station_counter"] += 1
-            bathroom_time = random.uniform(5, 10)
+            bathroom_time = abs(random.normalvariate(5, 10))
             toilet = min(FULL_TOILET, toilet + 40)
             distance_since_last_toilet = 0
             yield env.timeout(bathroom_time)
@@ -125,7 +126,7 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
             wait_time = env.now - start_wait
             total_time += wait_time
             counters["medical_station_counter"] += 1
-            medical_time = random.uniform(15, 20)
+            medical_time = abs(random.normalvariate(15, 20))
             health = min(FULL_HEALTH, health + 50)
             yield env.timeout(medical_time)
 
@@ -143,7 +144,7 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
     ]
 
     for phase in phases:
-        yield from advance(phase["mean"], phase["std"], f'{phase["distance"]} km', phase["distance"])
+        yield from advance(phase["mean"], phase["std"], f'{phase["distance"]} km', 5)
         
         thirst_modifier = (FULL_THRIST - thirst) / FULL_THRIST
         energy_modifier = (FULL_ENERGY - energy) / FULL_ENERGY
