@@ -132,19 +132,19 @@ def runner(env, name, weather_adjustment, counters, water_storage, bathroom_stor
 
 
     phases = [
-        {"distance": 5, "mean": MEAN_TIMES[0], "std": STD_TIMES[0]},
-        {"distance": 10, "mean": MEAN_TIMES[1], "std": STD_TIMES[1]},
-        {"distance": 15, "mean": MEAN_TIMES[2], "std": STD_TIMES[2]},
-        {"distance": 20, "mean": MEAN_TIMES[3], "std": STD_TIMES[3]},
-        {"distance": 25, "mean": MEAN_TIMES[4], "std": STD_TIMES[4]},
-        {"distance": 30, "mean": MEAN_TIMES[5], "std": STD_TIMES[5]},
-        {"distance": 35, "mean": MEAN_TIMES[6], "std": STD_TIMES[6]},
-        {"distance": 40, "mean": MEAN_TIMES[7], "std": STD_TIMES[7]},
-        {"distance": 42.195, "mean": MEAN_TIMES[8], "std": STD_TIMES[8]},
+        {"distance": 5, "mean": MEAN_TIMES[0], "std": STD_TIMES[0], "current": 5},
+        {"distance": 10, "mean": MEAN_TIMES[1], "std": STD_TIMES[1], "current": 5},
+        {"distance": 15, "mean": MEAN_TIMES[2], "std": STD_TIMES[2], "current": 5},
+        {"distance": 20, "mean": MEAN_TIMES[3], "std": STD_TIMES[3], "current": 5},
+        {"distance": 25, "mean": MEAN_TIMES[4], "std": STD_TIMES[4], "current": 5},
+        {"distance": 30, "mean": MEAN_TIMES[5], "std": STD_TIMES[5], "current": 5},
+        {"distance": 35, "mean": MEAN_TIMES[6], "std": STD_TIMES[6], "current": 5},
+        {"distance": 40, "mean": MEAN_TIMES[7], "std": STD_TIMES[7], "current": 5},
+        {"distance": 42.195, "mean": MEAN_TIMES[8], "std": STD_TIMES[8], "current": 2.195},
     ]
 
     for phase in phases:
-        yield from advance(phase["mean"], phase["std"], f'{phase["distance"]} km', 5)
+        yield from advance(phase["mean"], phase["std"], f'{phase["distance"]} km', phase["current"])
         
         thirst_modifier = (FULL_THRIST - thirst) / FULL_THRIST
         energy_modifier = (FULL_ENERGY - energy) / FULL_ENERGY
@@ -171,7 +171,7 @@ def check_prob(base_prob, modifier):
     return random.random() < base_prob * modifier
 
 # Design of Experiments (DOE) setup
-num_runners = 100
+num_runners = 1000
 water_capacity_per_runner = 0.05  # Example: 5 liters per 1000 runners
 toilet_capacity_per_runner = 0.025  # Example: 2.5 units per 1000 runners
 energy_capacity = num_runners * 0.1  # Example: 100 units per 1000 runners
