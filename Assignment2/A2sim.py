@@ -1,5 +1,8 @@
 import simpy
 import random
+import csv
+import uuid
+import os
 
 # Define constants for weather conditions
 HIGH_TEMPERATURE = 24.5
@@ -8,8 +11,8 @@ HIGH_HUMIDITY = 100
 LOW_HUMIDITY = 43
 
 # Weather condition effect multipliers
-TEMP_EFFECT_HIGH = 8
-TEMP_EFFECT_MEDIUM = 4
+TEMP_EFFECT_HIGH = 4
+TEMP_EFFECT_MEDIUM = 2
 HUMIDITY_EFFECT_HIGH = 2
 HUMIDITY_EFFECT_MEDIUM = 1
 
@@ -178,40 +181,94 @@ energy_capacity = num_runners * 0.1  # Example: 100 units per 1000 runners
 medical_capacity = num_runners * 0.05  # Example: 50 units per 1000 runners
 
 experiments = [
-    {'temp': 'L', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'L', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5* toilet_capacity_per_runner)},
     {'temp': 'L', 'hum': 'L', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
-    {'temp': 'L', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
+    {'temp': 'L', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
     {'temp': 'L', 'hum': 'H', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
-    {'temp': 'H', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'L', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
     {'temp': 'H', 'hum': 'L', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
-    {'temp': 'H', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * toilet_capacity_per_runner)},
+    {'temp': 'H', 'hum': 'H', 'water_capacity': int(num_runners * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)},
     {'temp': 'H', 'hum': 'H', 'water_capacity': int(num_runners * 1.5 * water_capacity_per_runner), 'toilet_capacity': int(num_runners * 1.5 * toilet_capacity_per_runner)}
 ]
 
-# To track the total times of all runners across experiments
-all_total_times = []
 
-# Run the experiments
-for exp_index, exp in enumerate(experiments):
-    print(f"Running experiment with temp={exp['temp']}, hum={exp['hum']}, water capacity {exp['water_capacity']} units, toilet capacity {exp['toilet_capacity']} units")
-    total_times = []
-    counters = reset_counters()
-    env, water_storage, bathroom_storage, energy_storage, medical_storage = init_environment(exp['water_capacity'], exp['toilet_capacity'], energy_capacity, medical_capacity)
-    weather_adjustment = calculate_weather_adjustment(exp['temp'], exp['hum'])
-    
-    for i in range(num_runners):  # Number of runners
-        env.process(runner(env, f'Runner_{i+1}', weather_adjustment, counters, water_storage, bathroom_storage, energy_storage, medical_storage))
-    env.run()
-    
-    experiment_counters[exp_index] = counters
-    all_total_times.append((exp, total_times))
 
+
+print(os.getcwd())
 # Calculate and print average times and station usage
-for i, (exp, times) in enumerate(all_total_times):
-    average_time = sum(times) / len(times)
-    print(f'Experiment {i+1} with temp={exp["temp"]}, hum={exp["hum"]}, water capacity {exp["water_capacity"]} units, toilet capacity {exp["toilet_capacity"]} units average time: {average_time:.2f} minutes')
-    counters = experiment_counters[i]
-    print(f'Water station usage: {counters["water_station_counter"]}')
-    print(f'Energy drink station usage: {counters["energy_station_counter"]}')
-    print(f'Bathroom usage: {counters["bathroom_station_counter"]}')
-    print(f'Medical station usage: {counters["medical_station_counter"]}')
+simulations = []
+for j in range(10):
+    # To track the total times of all runners across experiments
+    all_total_times = []
+
+	# Run the experiments
+    for exp_index, exp in enumerate(experiments):
+        #print(f"Running experiment with temp={exp['temp']}, hum={exp['hum']}, water capacity {exp['water_capacity']} units, toilet capacity {exp['toilet_capacity']} units")
+        total_times = []
+        counters = reset_counters()
+        env, water_storage, bathroom_storage, energy_storage, medical_storage = init_environment(exp['water_capacity'], exp['toilet_capacity'], energy_capacity,     medical_capacity)
+        weather_adjustment = calculate_weather_adjustment(exp['temp'], exp['hum'])
+        
+        for i in range(num_runners):  # Number of runners
+            env.process(runner(env, f'Runner_{i+1}', weather_adjustment, counters, water_storage, bathroom_storage, energy_storage, medical_storage))
+            env.run()
+        
+        experiment_counters[exp_index] = counters
+        all_total_times.append((exp, total_times))
+    for i, (exp, times) in enumerate(all_total_times):
+        average_time = sum(times) / len(times)
+        print(f'Experiment {i+1} with temp={exp["temp"]}, hum={exp["hum"]}, water capacity {exp["water_capacity"]} units, toilet capacity {exp["toilet_capacity"]} units average time: {average_time:.2f} minutes')
+        counters = experiment_counters[i]
+        print(f'Water station usage: {counters["water_station_counter"]}')
+        print(f'Energy drink station usage: {counters["energy_station_counter"]}')
+        print(f'Bathroom usage: {counters["bathroom_station_counter"]}')
+        print(f'Medical station usage: {counters["medical_station_counter"]}')
+        simulations += [
+        {
+        'experiments': [
+            {
+            	'experiment_id':i,
+                'sim_id': j,
+                'temp': exp['temp'],
+                'hum': exp['hum'],
+                'water_capacity': exp['water_capacity'],
+                'toilet_capacity': exp['toilet_capacity'],
+                'average_time': average_time,
+                'water_station_counter': counters['water_station_counter'],
+                'energy_station_counter': counters['energy_station_counter'],
+                'bathroom_station_counter': counters['bathroom_station_counter'],
+                'medical_station_counter': counters['medical_station_counter']
+            },
+            # Add other experiments here
+        ]
+        },
+        # Add other simulations here
+        ]
+
+    # Generate a random file name
+file_name = f'output/simulation_results.csv'
+    
+with open(file_name, mode='w', newline='') as file:
+        writer = csv.writer(file)
+    
+        # Write header
+        writer.writerow(['experiment_id','sim_id', 'temp', 'hum', 'water_capacity', 'toilet_capacity', 'average_time', 'water_station_counter', 'energy_station_counter', 'bathroom_station_counter', 'medical_station_counter'])
+    
+        # Write data
+        for simulation in simulations:
+            for i, exp in enumerate(simulation['experiments']):
+                writer.writerow([
+                exp['experiment_id'],
+                exp["sim_id"],
+                exp['temp'],
+                exp['hum'],
+                exp['water_capacity'],
+                exp['toilet_capacity'],
+                exp['average_time'],
+                exp['water_station_counter'],
+                exp['energy_station_counter'],
+                exp['bathroom_station_counter'],
+                exp['medical_station_counter']
+                ])
+
+print(f'Results saved to {file_name}')
